@@ -39,7 +39,9 @@ class Node {
       this.isDragging = true;
       this.offsetX = mouseX - this.x;
       this.offsetY = mouseY - this.y;
+      return true;
     }
+    return false;
   }
 
   handleMouseMove(event) {
@@ -124,26 +126,26 @@ class Node {
 
   }
 
-drawConnections() {
-  this.connectedNodes.forEach(connectedNode => {
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.x, this.y);
+  drawConnections() {
+    this.connectedNodes.forEach(connectedNode => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.x, this.y);
 
-    const deltaX = connectedNode.x - this.x;
-    const deltaY = connectedNode.y - this.y;
+      const deltaX = connectedNode.x - this.x;
+      const deltaY = connectedNode.y - this.y;
 
-    const controlX1 = this.x + Math.abs(deltaX) * 0.25 * (this.x < connectedNode.x ? 1 : -1);
-    const controlY1 = this.y;
+      const controlX1 = this.x + Math.abs(deltaX) * 0.25 * (this.x < connectedNode.x ? 1 : -1);
+      const controlY1 = this.y;
 
-    const controlX2 = this.x + Math.abs(deltaX) * 0.75 * (this.x < connectedNode.x ? 1 : -1);
-    const controlY2 = connectedNode.y;
+      const controlX2 = this.x + Math.abs(deltaX) * 0.75 * (this.x < connectedNode.x ? 1 : -1);
+      const controlY2 = connectedNode.y;
 
-    this.ctx.bezierCurveTo(controlX1, controlY1, controlX2, controlY2, connectedNode.x, connectedNode.y);
+      this.ctx.bezierCurveTo(controlX1, controlY1, controlX2, controlY2, connectedNode.x, connectedNode.y);
 
-    this.ctx.strokeStyle = this.color;
-    this.ctx.stroke();
-  });
-}
+      this.ctx.strokeStyle = this.color;
+      this.ctx.stroke();
+    });
+  }
 
 }
 
@@ -206,6 +208,7 @@ class Block {
     this.text = text;
     this.buttons = [];
 
+    this.isSelected = false;
     this.nodes = [];
   }
 
@@ -222,14 +225,28 @@ class Block {
     this.ctx.shadowOffsetX = 3; // Shadow offset in the X direction
     this.ctx.shadowOffsetY = 3; // Shadow offset in the Y direction
 
-    // Draw the block content
     this.ctx.fillStyle = this.color;
     drawRoundedRect(this.ctx,this.x, this.y, this.width, this.height, 5);
+    if(this.isSelected){
+      this.ctx.lineWidth = 4;
+      this.ctx.strokeStyle = "rgba(80, 188, 255, 0.3)";
+      this.ctx.stroke();
+      this.ctx.lineWidth = 0;
+    }
 
     // Draw the block header
     this.ctx.fillStyle = this.headerColor;
     drawRoundedRect(this.ctx,this.x, this.y, this.width, 30, 5, 9);
     //this.ctx.fillRect(this.x, this.y, this.width, 30);
+
+    if(this.isSelected){
+      let o = this.ctx.strokeStyle;
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeStyle = "rgba(80, 188, 255, 0.3)";
+      this.ctx.stroke();
+      this.ctx.lineWidth = 0;
+      this.ctx.strokeStyle = o;
+    }
 
     // Draw the block text
     this.ctx.fillStyle = "#000";
@@ -410,6 +427,16 @@ class CanvasManager {
 
     this.nodes = [];
 
+
+    this.selection = {
+      active: false,
+      startX: 0,
+      startY: 0,
+      endX: 0,
+      endY: 0,
+      selectedBlocks: [],
+    };
+
     this.dropDownMenu = new ContextMenuManager(this);
 
     this.setupCanvas();
@@ -485,12 +512,18 @@ class CanvasManager {
   }
 
   handleMouseMove(event) {
+    event.preventDefault();
+
+    if (this.selection.active) {
+      this.selection.endX = event.clientX;
+      this.selection.endY = event.clientY;
+    }
+
     for (var i = this.nodes.length - 1; i >= 0; i--) {
       const node = this.nodes[i]
       node.handleMouseMove(event);
     }
 
-    event.preventDefault();
     let pointer;
     if (this.draggedBlock) {
       this.draggedBlock.x = event.clientX - this.offsetX;
@@ -531,29 +564,43 @@ class CanvasManager {
   }
 
   handleMouseDown(event) {
+    event.preventDefault();
+    let nodePressed = false;
     for (var i = this.nodes.length - 1; i >= 0; i--) {
       const node = this.nodes[i]
-      node.handleMouseDown(event);
+      nodePressed = nodePressed || node.handleMouseDown(event);
     }
 
     const mouseX = event.clientX;
     const mouseY = event.clientY;
 
+    const {
+      block,
+      isOverHeader
+    } = this.isHoverBlock(mouseX, mouseY);
+
+    if (event.button === 0 && !block && !nodePressed) {//LMB
+      // Left mouse button clicked on empty space, start selection
+      this.selection.active = true;
+      this.selection.startX = event.clientX;
+      this.selection.startY = event.clientY;
+      this.selection.endX = event.clientX;
+      this.selection.endY = event.clientY;
+      this.selection.selectedBlocks.forEach(blk=>blk.isSelected=false);
+      this.selection.selectedBlocks = [];
+    }
+
+
     if (this.dropDownMenu.isVisible) {
-      let button = this.dropDownMenu.isButtonHovered(mouseX, mouseY);
-      if (button) {
-        button.activate(); // Call the activate method to execute the action with arguments
+      let ddButton = this.dropDownMenu.isButtonHovered(mouseX, mouseY);
+      if (ddButton) {
+        ddButton.activate(); // Call the activate method to execute the action with arguments
         this.dropDownMenu.hideMenu();
         this.drawBlocks();
       }
       return; // Don't proceed with the rest of the method if the button is clicked
     }
 
-    event.preventDefault();
-    const {
-      block,
-      isOverHeader
-    } = this.isHoverBlock(mouseX, mouseY);
 
     if (event.button == 2 && isOverHeader) {
       // right click
@@ -587,7 +634,57 @@ class CanvasManager {
     }
   }
 
+
+  isBlockInSelection(block) {
+    const blockX = block.x;
+    const blockY = block.y;
+    const blockWidth = block.width;
+    const blockHeight = block.height;
+
+    const minX = Math.min(this.selection.startX, this.selection.endX);
+    const minY = Math.min(this.selection.startY, this.selection.endY);
+    const maxX = Math.max(this.selection.startX, this.selection.endX);
+    const maxY = Math.max(this.selection.startY, this.selection.endY);
+
+    return (
+      blockX < maxX &&
+      blockX + blockWidth > minX &&
+      blockY < maxY &&
+      blockY + blockHeight > minY
+    );
+  }
+
+  drawSelectionArea() {
+    if (this.selection.active) {
+      // Draw selection area
+      this.ctx.fillStyle = "rgba(135, 206, 250, 0.3)"; // LightBlue with 30% opacity
+      this.ctx.strokeStyle = "rgba(80, 188, 255, 0.3)"; // LightBlue with 30% opacity
+
+      const x = Math.min(this.selection.startX, this.selection.endX);
+      const y = Math.min(this.selection.startY, this.selection.endY);
+      const width = Math.abs(this.selection.endX - this.selection.startX);
+      const height = Math.abs(this.selection.endY - this.selection.startY);
+
+
+      this.ctx.rect(x, y, width, height);
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
+  }
+
   handleMouseUp(event) {
+    if (this.selection.active) {
+      // Selection completed, find and store selected blocks
+      this.selection.selectedBlocks = this.blocks.filter((block) =>
+        this.isBlockInSelection(block)
+      );
+      this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
+
+      this.selection.active = false;
+      console.log(this.selection.selectedBlocks);
+      //this.drawSelectionArea();
+    }
+
     for (var i = this.nodes.length - 1; i >= 0; i--) {
       const node = this.nodes[i]
       node.handleMouseUp(event);
@@ -617,6 +714,7 @@ class CanvasManager {
 
   drawBlocks() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawSelectionArea();
     this.blocks.forEach((block) => {
       block.draw(this.ctx);
     });
