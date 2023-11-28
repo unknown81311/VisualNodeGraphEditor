@@ -45,6 +45,8 @@ class Node {
   }
 
   handleMouseMove(event) {
+    this.canvasManager.pointer = true;
+
     if(this.canvasManager.dropDownMenu.isVisible) return;
     this.draw(this.x,this.y);
   }
@@ -59,7 +61,6 @@ class Node {
     if (hoveredNode && this.isCompatibleWith(hoveredNode)) {
 
       const found = this.connectedNodes.findIndex(node => node.id === hoveredNode.id)!=-1||hoveredNode.connectedNodes.findIndex(node => node.id === this.id)!=-1;
-      console.log(found);
 
       if (found) {
         if(this.type == "input")
@@ -426,7 +427,7 @@ class CanvasManager {
     this.offsetY = 0;
 
     this.nodes = [];
-
+    this.cursor = 0;
 
     this.selection = {
       active: false,
@@ -524,21 +525,29 @@ class CanvasManager {
       node.handleMouseMove(event);
     }
 
-    let pointer;
-    if (this.draggedBlock) {
-      this.draggedBlock.x = event.clientX - this.offsetX;
-      this.draggedBlock.y = event.clientY - this.offsetY;
+    if(this.draggedBlock && this.selection.selectedBlocks.length>0){// drag multiple blocks
+      for (var i = this.selection.selectedBlocks.length - 1; i >= 0; i--) {
+        this.selection.selectedBlocks[i].x += event.movementX;
+        this.selection.selectedBlocks[i].y += event.movementY;
+      }
       this.drawBlocks();
+
+    } else if (this.draggedBlock) {
+      this.draggedBlock.x += event.movementX;
+      this.draggedBlock.y += event.movementY;
+      this.drawBlocks();
+
     } else {
+
       const {
         block,
         isOverHeader
       } = this.isHoverBlock(event.clientX, event.clientY);
 
-      pointer = isOverHeader;
+      this.cursor = isOverHeader?1:0;
 
       if (block && block.isButtonHovered(event.clientX, event.clientY))
-        pointer = true
+        this.cursor = 1
 
     }
     if (this.dropDownMenu.isVisible) {
@@ -556,11 +565,11 @@ class CanvasManager {
 
       for (let i = this.dropDownMenu.buttons.length - 1; i >= 0; i--) { // dont create new
         const button = this.dropDownMenu.buttons[i];
-        pointer = button.isHovered(event.clientX, event.clientY);
+        this.cursor = button.isHovered(event.clientX, event.clientY)?1:0;
       }
+
     }
-    if (pointer != undefined)
-      document.body.style.cursor = pointer ? "pointer" : "default";
+    document.body.style.cursor = this.cursor==0 ? "default" : this.cursor==1 ? "pointer" : "move" ;
   }
 
   handleMouseDown(event) {
@@ -581,11 +590,15 @@ class CanvasManager {
 
     if (event.button === 0 && !block && !nodePressed) {//LMB
       // Left mouse button clicked on empty space, start selection
-      this.selection.active = true;
-      this.selection.startX = event.clientX;
-      this.selection.startY = event.clientY;
-      this.selection.endX = event.clientX;
-      this.selection.endY = event.clientY;
+      if(this.selection.active){
+        this.selection.active = false;
+      } else {
+        this.selection.active = true;
+        this.selection.startX = event.clientX;
+        this.selection.startY = event.clientY;
+        this.selection.endX = event.clientX;
+        this.selection.endY = event.clientY;
+      }
       this.selection.selectedBlocks.forEach(blk=>blk.isSelected=false);
       this.selection.selectedBlocks = [];
     }
@@ -606,7 +619,6 @@ class CanvasManager {
       // right click
       this.dropDownMenu.removeAllButtons();
       this.dropDownMenu.addButton("Delete this", (blk) => {
-        console.log("delete blk", blk);
         this.deleteBlock(blk);
         this.dropDownMenu.hideMenu();
         this.drawBlocks();
@@ -621,8 +633,10 @@ class CanvasManager {
 
           this.blocks.splice(this.blocks.indexOf(block), 1);
           this.blocks.push(this.draggedBlock);
-
+          
+          this.cursor = 2;
           document.body.style.cursor = "move";
+          
           this.drawBlocks();
         }
 
@@ -669,6 +683,9 @@ class CanvasManager {
       this.ctx.rect(x, y, width, height);
       this.ctx.fill();
       this.ctx.stroke();
+
+      this.ctx.fillStyle = "rgba(0,0,0,0)";
+      this.ctx.strokeStyle = "rgba(0,0,0,0)";
     }
   }
 
@@ -681,7 +698,6 @@ class CanvasManager {
       this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
 
       this.selection.active = false;
-      console.log(this.selection.selectedBlocks);
       //this.drawSelectionArea();
     }
 
