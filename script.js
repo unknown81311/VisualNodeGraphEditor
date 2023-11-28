@@ -486,7 +486,9 @@ class CanvasManager {
       this.drawBlocks();
     }
     if(event.key == "Backspace") {
-      this.blocks = [];
+        for (var i = this.selection.selectedBlocks.length - 1; i >= 0; i--) {
+          this.deleteBlock(this.selection.selectedBlocks[i]);
+        }
       this.drawBlocks();
     }
   }
