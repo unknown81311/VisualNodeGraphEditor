@@ -147,7 +147,6 @@ class Node {
       this.ctx.stroke();
     });
   }
-
 }
 
 
@@ -448,13 +447,23 @@ class CanvasManager {
     const index = this.blocks.findIndex(existingBlock => existingBlock.id === block.id);
     if (index !== -1) {
       // remove node connections
-      block.nodes.forEach((node) => {
-        this.nodes.forEach((otherNode) => {
+      console.log(this.nodes.length);
+
+      block.nodes.forEach((node, nodeI) => {
+        this.nodes.forEach((otherNode, oNodeI) => {
           if (otherNode.connectedNodes.includes(node)) {
+            
             otherNode.unconnectToNode(node);
+            //this.nodes.splice(this.nodes.indexOf(otherNode), 1);
           }
+          if(node.id==otherNode.id)
+            this.nodes.splice(this.nodes.indexOf(otherNode), 1);
         });
+        // 
       });
+      // block.nodes = [];
+
+      console.log(this.nodes.length);
 
       this.blocks.splice(index, 1);
       this.drawBlocks(); // Redraw the canvas after deleting the block
@@ -477,9 +486,14 @@ class CanvasManager {
   }
 
   handlekeyDown(event) {
+    console.log(event.key)
     if(event.key == "a") {
       this.selection.selectedBlocks = this.blocks;
       this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
+    }
+    if(event.key == "Backspace") {
+      this.blocks = [];
+      this.drawBlocks();
     }
   }
 
