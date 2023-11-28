@@ -56,7 +56,10 @@ class Node {
     this.isDragging = false;
 
     // Check if the mouse is hovering over another node
-    const hoveredNode = this.canvasManager.nodes.find(node => node !== this && node.isHovered(event.clientX, event.clientY));
+    const hoveredNode = this.canvasManager.nodes.find(node => node !== this && node.isHovered(event.clientX, event.clientY, 9));
+
+    console.log(hoveredNode);
+    console.log(this.isCompatibleWith(hoveredNode))
 
     if (hoveredNode && this.isCompatibleWith(hoveredNode)) {
 
