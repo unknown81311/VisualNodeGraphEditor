@@ -58,9 +58,6 @@ class Node {
     // Check if the mouse is hovering over another node
     const hoveredNode = this.canvasManager.nodes.find(node => node !== this && node.isHovered(event.clientX, event.clientY, 9));
 
-    console.log(hoveredNode);
-    console.log(this.isCompatibleWith(hoveredNode))
-
     if (hoveredNode && this.isCompatibleWith(hoveredNode)) {
 
       const found = this.connectedNodes.findIndex(node => node.id === hoveredNode.id)!=-1||hoveredNode.connectedNodes.findIndex(node => node.id === this.id)!=-1;
@@ -476,6 +473,14 @@ class CanvasManager {
     this.canvas.addEventListener("mousemove", this.handleMouseMove.bind(this));
     this.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
     this.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
+    document.addEventListener("keydown", this.handlekeyDown.bind(this));
+  }
+
+  handlekeyDown(event) {
+    if(event.key == "a") {
+      this.selection.selectedBlocks = this.blocks;
+      this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
+    }
   }
 
   handleContextMenu(event) {
@@ -528,7 +533,7 @@ class CanvasManager {
       node.handleMouseMove(event);
     }
 
-    if(this.draggedBlock && this.selection.selectedBlocks.length>0){// drag multiple blocks
+    if(this.draggedBlock && this.selection.selectedBlocks.length!=0 && this.selection.selectedBlocks.findIndex(b=>b.id==this.draggedBlock.id)!=-1){// drag multiple blocks
       for (var i = this.selection.selectedBlocks.length - 1; i >= 0; i--) {
         this.selection.selectedBlocks[i].x += event.movementX;
         this.selection.selectedBlocks[i].y += event.movementY;
@@ -536,6 +541,11 @@ class CanvasManager {
       this.drawBlocks();
 
     } else if (this.draggedBlock) {
+      if(this.selection.active){
+        this.selection.active = false;
+        this.selection.selectedBlocks.forEach(blk=>blk.isSelected=false);
+        this.selection.selectedBlocks = [];
+      }
       this.draggedBlock.x += event.movementX;
       this.draggedBlock.y += event.movementY;
       this.drawBlocks();
