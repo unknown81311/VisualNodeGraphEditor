@@ -447,26 +447,19 @@ class CanvasManager {
     const index = this.blocks.findIndex(existingBlock => existingBlock.id === block.id);
     if (index !== -1) {
       // remove node connections
-      console.log(this.nodes.length);
-
       block.nodes.forEach((node, nodeI) => {
         this.nodes.forEach((otherNode, oNodeI) => {
           if (otherNode.connectedNodes.includes(node)) {
             
             otherNode.unconnectToNode(node);
-            //this.nodes.splice(this.nodes.indexOf(otherNode), 1);
           }
           if(node.id==otherNode.id)
             this.nodes.splice(this.nodes.indexOf(otherNode), 1);
         });
-        // 
       });
-      // block.nodes = [];
-
-      console.log(this.nodes.length);
 
       this.blocks.splice(index, 1);
-      this.drawBlocks(); // Redraw the canvas after deleting the block
+      this.drawBlocks();
     } else {
       alert("Error: Can't find block");
     }
@@ -490,6 +483,7 @@ class CanvasManager {
     if(event.key == "a") {
       this.selection.selectedBlocks = this.blocks;
       this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
+      this.drawBlocks();
     }
     if(event.key == "Backspace") {
       this.blocks = [];
