@@ -223,12 +223,12 @@ class TextInput {
   drawCursor(){ // doesnt work yet
     if(!this.selected)return;
     this.__blink = !this.__blink;
+    this.parent.draw();
     if(!this.__blink)return;
 
     const leftText = this.text.slice(0, this.carrotIndex);
     const textWidth = this.ctx.measureText(leftText);
 
-    this.parent.draw();
 
 
     this.ctx.fillStyle = "#000";
