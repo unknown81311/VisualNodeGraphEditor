@@ -151,7 +151,7 @@ class Node {
 
 
 class Button {
-  constructor(label, id, action, ctx, ...args) {
+  constructor(label, id, action, ctx, parent, ...args) {
     this.label = label;
     this.action = action;
     this.ctx = ctx;
@@ -159,6 +159,7 @@ class Button {
     this.y = 0;
     this.id = id;
     this.args = args;
+    this.parent = parent;
   }
 
   activate() {
@@ -193,9 +194,102 @@ class Button {
   }
 }
 
+class TextInput {
+  constructor(defaultText, placeholder, id, ctx, parent) {
+    this.text = defaultText;
+    this.placeholder = placeholder;
+    this.ctx = ctx;
+    this.x = 0;
+    this.y = 0;
+    this.id = id;
+    this.parent = parent;
+    this.ctx.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
+    //this.ctx.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
+    document.addEventListener("keypress", this.handlekeyDown.bind(this));
+    document.addEventListener("keydown", this.handleExtraKeys.bind(this));
+  }
+
+  draw(x, y) {
+    this.x = x; // Save the x and y values
+    this.y = y;
+
+    this.ctx.shadowColor = "rgba(0,0,0,0)";
+
+    const textWidth = this.ctx.measureText(this.text!="" && this.label || this.placeholder).width;
+
+    //// Draw the button background
+    //this.ctx.fillStyle = "#ddd";
+    //drawRoundedRect(this.ctx, this.x, this.y, textWidth + 10, 20, 2);
+    this.ctx.fillStyle = this.parent.color;
+    this.ctx.fillRect(this.x, this.y, textWidth + 20, 20);
+
+    // Draw the button text
+    this.ctx.fillStyle = "#000";
+    this.ctx.font = "12px Arial";
+    if(this.text!="")
+      this.ctx.fillText(this.text, this.x + 5, this.y + 15);
+    else {
+      this.ctx.fillStyle = "#999";
+      this.ctx.fillText(this.placeholder, this.x + 5, this.y + 15);
+    }
+
+  }
+
+  handleExtraKeys(event) {// cant get Backspace Key or something?
+    if(!this.selected)return;
+    if(event.key == "Enter"){
+      this.selected = false;
+      this.parent.canvasManager.stopKeybinds = true;
+    }
+    if(event.key == "Backspace"){
+      this.text = this.text.slice(0, -1); 
+    }
+    this.parent.draw();
+  }
+
+  handlekeyDown(event) {
+    if(!this.selected)return;
+    if(event.key.length==1)
+      this.text += event.key;
+    this.parent.draw();
+  }
+
+  handleMouseDown(event) {
+    const mouseX = event.clientX;
+    const mouseY = event.clientY;
+    const textWidth = this.ctx.measureText(this.text!="" && this.label || this.placeholder).width;
+    const valid =
+      mouseX >= this.x &&
+      mouseX <= this.x + textWidth + 10 &&
+      mouseY >= this.y &&
+      mouseY <= this.y + 20;
+
+    if(this.selected){
+      if(valid){// select cursor index
+        
+      }else {
+        this.selected = false;
+        this.parent.canvasManager.stopKeybinds = false;
+      }
+
+    }else{
+      if(valid){
+        this.selected = true;
+        // console.log(this.parent.canvasManager);
+        this.parent.canvasManager.stopKeybinds = true;
+      } else
+        this.parent.canvasManager.stopKeybinds = false;
+    }
+
+  }
+
+  //handleMouseUp(event) {
+  //
+  //}
+}
 
 class Block {
-  constructor(canvasManager, ctx, x, y, width, height, color, headerColor, text) {
+   constructor(canvasManager, ctx, x, y, width, height, color, headerColor, text) {
     this.canvasManager = canvasManager;
     this.id = ++this.canvasManager.highestID;
     this.ctx = ctx;
@@ -206,16 +300,25 @@ class Block {
     this.color = color;
     this.headerColor = headerColor;
     this.text = text;
-    this.buttons = [];
-
+    this.elements = []; // Replace buttons with elements
     this.isSelected = false;
     this.nodes = [];
   }
 
   addButton(label, action, ...args) {
     this.canvasManager.highestID++;
-    const button = new Button(label, this.canvasManager.highestID, action, this.ctx, ...args);
-    this.buttons.push(button);
+    const blk = this;
+    const button = new Button(label, this.canvasManager.highestID, action, this.ctx, blk, ...args);
+    this.elements.push({ type: "button", element: button });
+  }
+
+  addTextInput(defaultText, placeholder) {
+    // Example of adding a text input
+    this.canvasManager.highestID++;
+    const blk = this;
+    console.log("BLOCK",blk);
+    const textInput = new TextInput(defaultText, placeholder, this.canvasManager.highestID, this.ctx, blk);
+    this.elements.push({ type: "textInput", element: textInput });
   }
 
   draw() {
@@ -237,7 +340,6 @@ class Block {
     // Draw the block header
     this.ctx.fillStyle = this.headerColor;
     drawRoundedRect(this.ctx,this.x, this.y, this.width, 30, 5, 9);
-    //this.ctx.fillRect(this.x, this.y, this.width, 30);
 
     if(this.isSelected){
       let o = this.ctx.strokeStyle;
@@ -254,10 +356,10 @@ class Block {
     this.ctx.fillText(this.text, this.x + 10, this.y + 20);
 
     // Draw buttons in the content area
-    let buttonOffsetY = 40;
-    this.buttons.forEach((button) => {
-      button.draw(this.x + 10, this.y + buttonOffsetY);
-      buttonOffsetY += 25;
+    let elementOffsetY = 40;
+    this.elements.forEach((value) => {
+      value.element.draw(this.x + 10, this.y + elementOffsetY);
+      elementOffsetY += 25;
     });
 
     // Reset shadow after drawing the block
@@ -287,16 +389,17 @@ class Block {
     return mouseY <= this.y + 30;
   }
 
-
-  isButtonHovered(mouseX, mouseY) {
-    for (let i = 0; i < this.buttons.length; i++) {
-      const button = this.buttons[i];
-      if (button.isHovered(mouseX, mouseY)) {
-        return button;
+  isElementHovered(mouseX, mouseY, searchType) {
+    for (let i = 0; i < this.elements.length; i++) {
+      const value = this.elements[i];
+      if(searchType && value.type!=searchType) continue;
+      if (value.element.isHovered(mouseX, mouseY)) {
+        return value.element;
       }
     }
     return null;
   }
+
 
   addNode(type) {
     const nodeRadius = 6;
@@ -427,6 +530,7 @@ class CanvasManager {
 
     this.nodes = [];
     this.cursor = 0;
+    this.stopKeybinds = false;
 
     this.selection = {
       active: false,
@@ -453,7 +557,7 @@ class CanvasManager {
             
             otherNode.unconnectToNode(node);
           }
-          if(node.id==otherNode.id)
+          if(node.id == otherNode.id)
             this.nodes.splice(this.nodes.indexOf(otherNode), 1);
         });
       });
@@ -479,7 +583,7 @@ class CanvasManager {
   }
 
   handlekeyDown(event) {
-    console.log(event.key)
+    if(this.stopKeybinds)return;
     if(event.key == "a") {
       this.selection.selectedBlocks = this.blocks;
       this.selection.selectedBlocks.forEach(blk => blk.isSelected = true);
@@ -513,7 +617,7 @@ class CanvasManager {
       mouseX - 50,
       mouseY - 50,
       200,
-      100,
+      300,
       "#f0f0f0",
       "#ddd",
       "Block Text"
@@ -522,8 +626,11 @@ class CanvasManager {
     newBlock.addButton("Button 1", () => alert("Button 1 clicked!"));
     newBlock.addButton("Button 2", () => alert("Button 2 clicked!"));
 
+    newBlock.addTextInput("","input?");
+
     newBlock.addNode("input");
     newBlock.addNode("output");
+    newBlock.addNode("input");
 
     this.blocks.push(newBlock);
 
@@ -569,7 +676,7 @@ class CanvasManager {
 
       this.cursor = isOverHeader?1:0;
 
-      if (block && block.isButtonHovered(event.clientX, event.clientY))
+      if (block && block.isElementHovered(event.clientX, event.clientY, "button"))
         this.cursor = 1
 
     }
@@ -663,7 +770,7 @@ class CanvasManager {
           this.drawBlocks();
         }
 
-        const clickedButton = block.isButtonHovered(mouseX, mouseY);
+        const clickedButton = block.isElementHovered(mouseX, mouseY, "button");
         if (clickedButton) {
           clickedButton.activate();
         }
