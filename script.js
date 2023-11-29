@@ -203,10 +203,40 @@ class TextInput {
     this.y = 0;
     this.id = id;
     this.parent = parent;
+
+    this.carrotIndex = 0;
+
     this.ctx.canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
     //this.ctx.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
     document.addEventListener("keypress", this.handlekeyDown.bind(this));
     document.addEventListener("keydown", this.handleExtraKeys.bind(this));
+
+    this.__blink = false;
+
+    this.cursorInterval = setInterval(() => this.drawCursor(), 500);
+  }
+
+  clearCursorInterval(){
+    clearInterval(this.cursorInterval);
+  }
+
+  drawCursor(){ // doesnt work yet
+    if(!this.selected)return;
+    this.__blink = !this.__blink;
+    if(!this.__blink)return;
+
+    const leftText = this.text.slice(0, this.carrotIndex);
+    const textWidth = this.ctx.measureText(leftText);
+
+    this.parent.draw();
+
+
+    this.ctx.fillStyle = "#000";
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.x + 5, this.y + 15 + textWidth);
+    this.ctx.moveTo(this.x + 5, this.y + 15 + textWidth+20);
+    this.ctx.closePath();
+    this.ctx.stroke();
   }
 
   draw(x, y) {
@@ -215,18 +245,23 @@ class TextInput {
 
     this.ctx.shadowColor = "rgba(0,0,0,0)";
 
-    const textWidth = this.ctx.measureText(this.text!="" && this.label || this.placeholder).width;
+    const textWidth = this.ctx.measureText(this.text!="" && this.text || this.placeholder).width;
 
-    //// Draw the button background
-    //this.ctx.fillStyle = "#ddd";
-    //drawRoundedRect(this.ctx, this.x, this.y, textWidth + 10, 20, 2);
     this.ctx.fillStyle = this.parent.color;
-    this.ctx.fillRect(this.x, this.y, textWidth + 20, 20);
+    this.ctx.fillRect(this.x, this.y, textWidth + 10, 20);
+
+    if(this.selected)
+    {
+      this.ctx.strokeStyle = "#222";
+      this.ctx.strokeRect(this.x, this.y, textWidth + 10, 20);
+      this.ctx.fillStyle = "rgba(10,10,10,0.1)";
+      this.ctx.fillRect(this.x, this.y, textWidth + 10, 20);
+    }
 
     // Draw the button text
     this.ctx.fillStyle = "#000";
     this.ctx.font = "12px Arial";
-    if(this.text!="")
+    if(this.text != "")
       this.ctx.fillText(this.text, this.x + 5, this.y + 15);
     else {
       this.ctx.fillStyle = "#999";
@@ -236,28 +271,38 @@ class TextInput {
   }
 
   handleExtraKeys(event) {// cant get Backspace Key or something?
+    console.log(event);
     if(!this.selected)return;
     if(event.key == "Enter"){
       this.selected = false;
       this.parent.canvasManager.stopKeybinds = true;
     }
     if(event.key == "Backspace"){
-      this.text = this.text.slice(0, -1); 
+      console.log(this.text.slice(0, this.carrotIndex), this.text.slice(this.carrotIndex-1));
+      this.text = this.text.slice(0, this.carrotIndex-1) + this.text.slice(this.carrotIndex+1);
+      this.carrotIndex--;
+    }
+    if(event.key == "ArrowLeft"){
+      this.carrotIndex = Math.max(0, this.carrotIndex-1);
+    }
+    if(event.key == "ArrowRight"){
+      this.carrotIndex = Math.min(this.text.length, this.carrotIndex+1);
     }
     this.parent.draw();
   }
 
   handlekeyDown(event) {
-    if(!this.selected)return;
-    if(event.key.length==1)
-      this.text += event.key;
+    if(!this.selected || event.key.length!=1)return;
+    this.text = this.text.slice(0, this.carrotIndex) + event.key + this.text.slice(this.carrotIndex);
+    this.carrotIndex++;
+
     this.parent.draw();
   }
 
   handleMouseDown(event) {
     const mouseX = event.clientX;
     const mouseY = event.clientY;
-    const textWidth = this.ctx.measureText(this.text!="" && this.label || this.placeholder).width;
+    const textWidth = this.ctx.measureText(this.text!="" && this.text || this.placeholder).width;
     const valid =
       mouseX >= this.x &&
       mouseX <= this.x + textWidth + 10 &&
@@ -266,7 +311,7 @@ class TextInput {
 
     if(this.selected){
       if(valid){// select cursor index
-        
+
       }else {
         this.selected = false;
         this.parent.canvasManager.stopKeybinds = false;
@@ -275,6 +320,7 @@ class TextInput {
     }else{
       if(valid){
         this.selected = true;
+        this.carrotIndex = this.text.length;
         // console.log(this.parent.canvasManager);
         this.parent.canvasManager.stopKeybinds = true;
       } else
@@ -303,6 +349,15 @@ class Block {
     this.elements = []; // Replace buttons with elements
     this.isSelected = false;
     this.nodes = [];
+  }
+
+  destroy(){
+    for (var i = this.elements.length - 1; i >= 0; i--) {
+      if(this.elements[i].type == "textInput") {
+        console.log(this.elements[i].element);
+        this.elements[i].element.clearCursorInterval();
+      }
+    }
   }
 
   addButton(label, action, ...args) {
@@ -561,7 +616,7 @@ class CanvasManager {
             this.nodes.splice(this.nodes.indexOf(otherNode), 1);
         });
       });
-
+      block.destroy();
       this.blocks.splice(index, 1);
       this.drawBlocks();
     } else {
