@@ -296,27 +296,30 @@ class TextInput {
 
     this.__blink = false;
 
-    this.cursorInterval = setInterval(() => this.drawCursor(), 500);
+    this.cursorInterval = setInterval(() => {
+      this.__blink = !this.__blink;
+      this.draw();
+    }, 500);
   }
 
   clearCursorInterval(){
     clearInterval(this.cursorInterval);
   }
 
-  drawCursor(){ // doesnt work yet
+  drawCursor(){ 
     if(!this.selected)return;
-    this.__blink = !this.__blink;
-    this.parent.draw();
-    if(!this.__blink)return;
+    if(!this.selected || !this.__blink)return;
 
     const leftText = this.text.slice(0, this.carrotIndex);
-    const textWidth = this.ctx.measureText(leftText);
+    const textWidth = this.ctx.measureText(leftText).width;
 
     this.ctx.fillStyle = "#000";
+    this.ctx.strokeStyle = "#000";
+
+    this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.moveTo(this.x + 5, this.y + 15 + textWidth);
-    this.ctx.moveTo(this.x + 5, this.y + 15 + textWidth+20);
-    this.ctx.closePath();
+    this.ctx.moveTo(this.x + 5 + textWidth, this.y + 3 );
+    this.ctx.lineTo(this.x + 5 + textWidth, this.y + 17 );
     this.ctx.stroke();
   }
 
@@ -349,17 +352,21 @@ class TextInput {
       this.ctx.fillText(this.placeholder, this.x + 5, this.y + 15);
     }
 
+    // doesnt work if I dont do this?
+    this.ctx.strokeStyle = "#fff";
+    this.ctx.beginPath();
+    this.ctx.stroke();
+    this.drawCursor();
   }
 
   handleExtraKeys(event) {// cant get Backspace Key or something?
-    console.log(event);
     if(!this.selected)return;
     if(event.key == "Enter"){
       this.selected = false;
       this.parent.canvasManager.stopKeybinds = true;
     }
     if(event.key == "Backspace"){
-      console.log(this.text.slice(0, this.carrotIndex), this.text.slice(this.carrotIndex-1));
+      // console.log(this.text.slice(0, this.carrotIndex), this.text.slice(this.carrotIndex-1));
       this.text = this.text.slice(0, this.carrotIndex-1) + this.text.slice(this.carrotIndex+1);
       this.carrotIndex--;
     }
@@ -369,6 +376,7 @@ class TextInput {
     if(event.key == "ArrowRight"){
       this.carrotIndex = Math.min(this.text.length, this.carrotIndex+1);
     }
+    this.__blink = true;
     this.parent.draw();
   }
 
@@ -392,8 +400,25 @@ class TextInput {
 
     if(this.selected){
       if(valid){// select cursor index
+        let cursorIndex = 0;
+        let currentX = this.x;
 
-      }else {
+        while (cursorIndex < this.text.length) {
+          const charWidth = this.ctx.measureText(this.text.charAt(cursorIndex)).width;
+
+
+          if (mouseX- charWidth/2 <= currentX ){//&& mouseX <= currentX + charWidth / 2) {
+            // If the mouse is closer to the beginning of the character, set cursorIndex
+            break;
+          }
+          currentX += charWidth;
+          cursorIndex++;
+
+        }
+        console.log(currentX);
+        this.carrotIndex = cursorIndex;
+      } else {
+        console.log("not valid?")
         this.selected = false;
         this.parent.canvasManager.stopKeybinds = false;
       }
@@ -402,17 +427,12 @@ class TextInput {
       if(valid){
         this.selected = true;
         this.carrotIndex = this.text.length;
-        // console.log(this.parent.canvasManager);
         this.parent.canvasManager.stopKeybinds = true;
       } else
         this.parent.canvasManager.stopKeybinds = false;
     }
-
+    this.parent.draw();
   }
-
-  //handleMouseUp(event) {
-  //
-  //}
 }
 
 class Block {
