@@ -41,6 +41,20 @@ class Node {
       this.offsetY = mouseY - this.y;
       return true;
     }
+
+    // Check if the mouse is hovering over a connection
+    const hoveredConnection = this.isHoveredConnection(event.clientX, event.clientY);
+    console.log(hoveredConnection);
+     if (hoveredConnection) {
+       console.log(this.type);
+       if(this.type == "input")
+         hoveredConnection.unconnectToNode(this);
+       else
+         this.unconnectToNode(hoveredConnection);
+
+       this.draw(this.x,this.y);
+     }
+
     return false;
   }
 
@@ -51,8 +65,77 @@ class Node {
     this.draw(this.x,this.y);
   }
 
+  
+  isHoveredConnection(mouseX, mouseY) {
+    function isMouseNearBezierCurve(
+      mouseX,
+      mouseY,
+      startX,
+      startY,
+      controlX1,
+      controlY1,
+      controlX2,
+      controlY2,
+      endX,
+      endY
+    ) {
+      const threshold = 5;
+
+      const numSamples = 100;
+      for (let t = 0; t <= 1; t += 1 / numSamples) {
+        const x = Math.pow(1 - t, 3) * startX +
+          3 * Math.pow(1 - t, 2) * t * controlX1 +
+          3 * (1 - t) * Math.pow(t, 2) * controlX2 +
+          Math.pow(t, 3) * endX;
+
+        const y = Math.pow(1 - t, 3) * startY +
+          3 * Math.pow(1 - t, 2) * t * controlY1 +
+          3 * (1 - t) * Math.pow(t, 2) * controlY2 +
+          Math.pow(t, 3) * endY;
+
+        const distance = Math.sqrt(Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2));
+        if (distance < threshold + 3) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    for (const connectedNode of this.connectedNodes) {
+      const startX = this.x;
+      const startY = this.y;
+      const endX = connectedNode.x;
+      const endY = connectedNode.y;
+
+      // Check if the mouse is close to the bezier curve
+      if (
+        isMouseNearBezierCurve(
+          mouseX,
+          mouseY,
+          startX,
+          startY,
+          this.x + (endX - this.x) * 0.25,
+          this.y,
+          this.x + (endX - this.x) * 0.75,
+          endY,
+          endX,
+          endY
+        )
+      ) {
+        return connectedNode;
+      }
+    }
+    return false;
+  }
+
+
   handleMouseUp(event) {
-    if(!this.isDragging) return;
+    if (!this.isDragging) {
+      
+      return;
+    }
+
     this.isDragging = false;
 
     // Check if the mouse is hovering over another node
@@ -228,8 +311,6 @@ class TextInput {
 
     const leftText = this.text.slice(0, this.carrotIndex);
     const textWidth = this.ctx.measureText(leftText);
-
-
 
     this.ctx.fillStyle = "#000";
     this.ctx.beginPath();
